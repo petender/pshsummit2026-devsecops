@@ -1,0 +1,38 @@
+name: "⚠️ DEMO ONLY — Fork Protection (UNSAFE pattern)"
+
+# ------------------------------------------------------------------
+# DO NOT USE THIS IN PRODUCTION.
+# This workflow intentionally demonstrates a dangerous pattern:
+# pull_request_target runs with write permissions and access to
+# secrets even when triggered from a forked repository.
+#
+# A malicious fork contributor could modify workflow files in their
+# fork to exfiltrate secrets or abuse the write-scoped GITHUB_TOKEN.
+# ------------------------------------------------------------------
+
+on:
+  pull_request_target:        # ← DANGEROUS on public repos
+    types: [opened, synchronize]
+
+# No explicit permissions block — inherits broad defaults (contents: write etc.)
+
+jobs:
+  unsafe-build:
+    name: "⚠️ Unsafe — runs with repo secrets from fork PR"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code from HEAD of the PR branch
+        uses: actions/checkout@v4   # ← checks out fork's code with write token in context
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Show that secrets are accessible here (DANGEROUS)
+        run: |
+          echo "This step runs with write-scoped GITHUB_TOKEN."
+          echo "A forked PR's modified workflow could print or exfiltrate:"
+          echo "  - Repository secrets"
+          echo "  - GITHUB_TOKEN with write access"
+          echo "  - Environment secrets if an environment is referenced"
+          echo ""
+          echo "Triggered by fork: ${{ github.event.pull_request.head.repo.fork }}"
+          echo "Fork repo:         ${{ github.event.pull_request.head.repo.full_name }}"

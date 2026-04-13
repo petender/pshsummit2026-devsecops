@@ -1,0 +1,79 @@
+name: Fork Protection Demo (safe pattern)
+
+# ------------------------------------------------------------------
+# SAFE fork workflow — uses pull_request (not pull_request_target).
+#
+# Key differences vs the unsafe version:
+#   - pull_request runs with a read-only, ephemeral token scoped to
+#     the fork — it cannot access repository secrets.
+#   - Secrets are never injected into fork-triggered jobs.
+#   - If write access is needed (e.g., posting a PR comment), it must
+#     be done in a separate workflow triggered by workflow_run, which
+#     runs in the context of the base repo only after CI passes.
+# ------------------------------------------------------------------
+
+on:
+  pull_request:               # ← SAFE: fork builds get no secret access
+    types: [opened, synchronize]
+    branches:
+      - main
+
+permissions:
+  contents: read              # least privilege — read only
+  # pull-requests: write      # uncomment ONLY if this job needs to post PR comments
+
+jobs:
+  safe-build:
+    name: "CI — safe for fork PRs"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        # No 'ref' override needed — pull_request always checks out the merge commit
+        # of the PR branch against base, safely.
+
+      - name: Show token and fork context
+        run: |
+          echo "✅ Running with a read-only, ephemeral GITHUB_TOKEN."
+          echo "   Secrets are NOT available in this job when triggered from a fork."
+          echo ""
+          echo "   Triggered by: ${{ github.actor }}"
+          echo "   Fork PR:      ${{ github.event.pull_request.head.repo.fork }}"
+          echo "   Base repo:    ${{ github.repository }}"
+
+      - name: Simulate CI checks (build + test)
+        run: |
+          echo "🔨 Simulating build..."
+          echo "✅ Build passed."
+          echo ""
+          echo "🧪 Simulating tests..."
+          echo "✅ All tests passed."
+
+      - name: Demonstrate no secret access from fork
+        run: |
+          echo "Attempting to read a repo secret from a fork-triggered build:"
+          # In a real fork PR, MY_SECRET would be empty — GitHub does not inject it.
+          if [ -z "$MY_SECRET" ]; then
+            echo "✅ MY_SECRET is empty — secrets are correctly withheld from fork builds."
+          else
+            echo "❌ MY_SECRET is set — this should not happen for a fork PR."
+          fi
+        env:
+          MY_SECRET: ${{ secrets.MY_DEMO_SECRET }}   # will be empty string for fork PRs
+
+# ------------------------------------------------------------------
+# DEMO TALKING POINTS
+#
+# 1. Compare the 'on:' trigger in this file vs fork-protection-unsafe.yml.
+#    - pull_request       → fork gets a sandboxed read-only token, no secrets
+#    - pull_request_target → fork code runs with base-repo write token + secrets
+#
+# 2. Navigate to Settings → Actions → Fork pull request workflows:
+#    - "Require approval for first-time contributors" — show the options:
+#        a) Only first-time contributors (default, reasonable)
+#        b) First-time contributors from forks with no prior merged commits
+#        c) All outside collaborators (most conservative)
+#
+# 3. Trigger a PR from a forked repo → show the "Waiting for approval"
+#    banner in Actions UI before the job runs at all.
+# ------------------------------------------------------------------
