@@ -1,0 +1,131 @@
+name: Key Rotation — Azure SP Secret
+
+# -------------------------------------------------------
+# DEMO: K — Keyless Authentication & Key Rotation
+#
+# This workflow demonstrates automated Azure service principal
+# (SP) secret rotation — a self-healing rotation loop that
+# keeps a stored credential fresh without manual intervention.
+#
+# Prerequisites (set up before the session):
+#
+#   Repository variables (Settings → Variables → Actions):
+#     AZURE_CLIENT_ID       — App Registration (client) ID used for OIDC auth
+#     AZURE_TENANT_ID       — Azure AD tenant ID
+#     AZURE_SUBSCRIPTION_ID — Azure subscription ID
+#     AZURE_SP_OBJECT_ID    — Object ID of the SP whose secret is being rotated
+#                             (find it: az ad sp show --id <appId> --query id -o tsv)
+#
+#   Repository secrets (Settings → Secrets → Actions):
+#     AZURE_CLIENT_SECRET   — The current SP secret (the one being rotated)
+#     ROTATION_PAT          — A GitHub fine-grained PAT with "Secrets" read+write
+#                             permission on this repo. GITHUB_TOKEN cannot update
+#                             secrets — this is a deliberate GitHub security boundary.
+#
+#   Azure federated credential (for OIDC):
+#     In the App Registration used for OIDC, add a federated credential for:
+#       repo:petender/pshsummit2026-devsecops:ref:refs/heads/main
+#     This allows the workflow to authenticate to Azure without any stored secret.
+#
+# Demo flow:
+#   Beat 1 — Open this file and walk through the structure:
+#            - Scheduled monthly AND workflow_dispatch for live demo trigger
+#            - OIDC auth to Azure (no stored secret needed to *do* the rotation)
+#            - az ad sp credential reset to generate a new SP secret
+#            - ::add-mask:: to prevent the new value appearing in logs
+#            - gh secret set to push the new value back into GitHub
+#   Beat 2 — Trigger manually via Actions → Run workflow, watch it run
+#   Beat 3 — Show AZURE_CLIENT_SECRET in Settings → Secrets → note the
+#            "Updated X seconds ago" timestamp has changed
+#   Beat 4 — Compare with OIDC (letter O): OIDC has no secret at all;
+#            rotation is the safety net while migrating to keyless auth
+# -------------------------------------------------------
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'    # 02:00 UTC on the 1st of every month
+  workflow_dispatch:        # manual trigger for the live demo
+
+permissions:
+  id-token: write           # required for OIDC auth to Azure
+  contents: read
+
+jobs:
+  rotate-sp-secret:
+    name: Rotate Azure SP Secret
+    runs-on: ubuntu-latest
+
+    steps:
+      # -------------------------------------------------------
+      # Step 1: Authenticate to Azure using OIDC.
+      # No stored secret is consumed here — GitHub mints a
+      # short-lived JWT that Azure validates against the
+      # federated credential. Point this out during the demo:
+      # "I'm rotating a secret, but I don't need one to do it."
+      # -------------------------------------------------------
+      - name: Authenticate to Azure (OIDC — no stored secret needed)
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2.3.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # -------------------------------------------------------
+      # Step 2: Reset the SP credential via Azure CLI.
+      # --years 1 sets the new credential to expire in 1 year.
+      # ::add-mask:: prevents the new secret value appearing
+      # anywhere in the Actions log — even accidentally.
+      # The value is passed forward via GITHUB_OUTPUT only.
+      # -------------------------------------------------------
+      - name: Rotate the service principal credential
+        id: rotate
+        run: |
+          echo "🔄 Resetting credential for SP: ${{ vars.AZURE_SP_OBJECT_ID }}"
+
+          NEW_SECRET=$(az ad sp credential reset \
+            --id "${{ vars.AZURE_SP_OBJECT_ID }}" \
+            --years 1 \
+            --query 'password' \
+            --output tsv)
+
+          # Mask immediately — this value must never appear in logs
+          echo "::add-mask::$NEW_SECRET"
+
+          echo "new_secret=$NEW_SECRET" >> "$GITHUB_OUTPUT"
+          echo "✅ New credential generated."
+
+      # -------------------------------------------------------
+      # Step 3: Update the GitHub Actions secret with the new value.
+      # GITHUB_TOKEN cannot update repository secrets — that is a
+      # deliberate GitHub security boundary. ROTATION_PAT is a
+      # fine-grained PAT with "Secrets: read+write" on this repo.
+      # After this step, check Settings → Secrets → AZURE_CLIENT_SECRET
+      # and show the "Updated X seconds ago" timestamp has changed.
+      # -------------------------------------------------------
+      - name: Update AZURE_CLIENT_SECRET in GitHub Actions
+        env:
+          GH_TOKEN: ${{ secrets.ROTATION_PAT }}
+          NEW_SECRET: ${{ steps.rotate.outputs.new_secret }}
+        run: |
+          echo "$NEW_SECRET" | gh secret set AZURE_CLIENT_SECRET \
+            --repo "${{ github.repository }}"
+          echo "✅ AZURE_CLIENT_SECRET updated in GitHub Actions secrets."
+
+      # -------------------------------------------------------
+      # Step 4: Confirm — print a summary (no secret values).
+      # -------------------------------------------------------
+      - name: Rotation summary
+        run: |
+          echo "──────────────────────────────────────────────"
+          echo "  Key Rotation Summary"
+          echo "──────────────────────────────────────────────"
+          echo "  SP Object ID  : ${{ vars.AZURE_SP_OBJECT_ID }}"
+          echo "  Secret name   : AZURE_CLIENT_SECRET"
+          echo "  Rotated at    : $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "  Next schedule : 1st of next month at 02:00 UTC"
+          echo "──────────────────────────────────────────────"
+          echo ""
+          echo "  Compare with OIDC (letter O):"
+          echo "  ✅ OIDC      — no stored secret exists at all"
+          echo "  🔄 Rotation  — secret still exists, just fresher"
+          echo "  Goal: migrate to OIDC; use rotation as the safety net."
