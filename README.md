@@ -8,7 +8,7 @@ Demo repository for the **PowerShell & DevOps Summit Bellevue 2026** conference 
 
 This repo contains all demo scripts, reference guides, and supporting material used during the live session. The session runs 80 minutes and walks through DevSecOps concepts and tooling from A to Z using GitHub, GitHub Advanced Security (GHAS), GitHub Copilot, and Azure.
 
-**Audience:** Developers and engineers new to or deepening their DevSecOps knowledge.
+**Audience:** Developers and DevOps engineers new to or deepening their DevSecOps knowledge.
 
 ## Contents
 
