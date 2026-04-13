@@ -36,4 +36,4 @@ jobs:
           echo "MY_SECRET value: $MY_SECRET"
           echo "(if this prints the secret value, pull_request_target gave the fork access to repo secrets)"
         env:
-          MY_SECRET: ${{ secrets.MY_DEMO_SECRET }}
+          MY_SECRET: ${{ secrets.MY_SECRET }}
