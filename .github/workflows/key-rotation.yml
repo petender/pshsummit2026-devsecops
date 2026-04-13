@@ -66,9 +66,9 @@ jobs:
       - name: Authenticate to Azure (OIDC — no stored secret needed)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2.3.0
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # -------------------------------------------------------
       # Step 2: Reset the SP credential via Azure CLI.
@@ -80,10 +80,10 @@ jobs:
       - name: Rotate the service principal credential
         id: rotate
         run: |
-          echo "🔄 Resetting credential for SP: ${{ vars.AZURE_SP_OBJECT_ID }}"
+          echo "🔄 Resetting credential for SP: ${{ secrets.AZURE_SP_OBJECT_ID }}"
 
           NEW_SECRET=$(az ad sp credential reset \
-            --id "${{ vars.AZURE_SP_OBJECT_ID }}" \
+            --id "${{ secrets.AZURE_SP_OBJECT_ID }}" \
             --years 1 \
             --query 'password' \
             --output tsv)
@@ -119,7 +119,7 @@ jobs:
           echo "──────────────────────────────────────────────"
           echo "  Key Rotation Summary"
           echo "──────────────────────────────────────────────"
-          echo "  SP Object ID  : ${{ vars.AZURE_SP_OBJECT_ID }}"
+          echo "  SP Object ID  : ${{ secrets.AZURE_SP_OBJECT_ID }}"
           echo "  Secret name   : AZURE_CLIENT_SECRET"
           echo "  Rotated at    : $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo "  Next schedule : 1st of next month at 02:00 UTC"
