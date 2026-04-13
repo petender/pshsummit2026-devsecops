@@ -301,6 +301,28 @@ gem 'someweirdpackage', '1.0.0'
 
 **Key message:** A "Verified" badge means the commit cryptographically came from that identity — important for supply chain provenance.
 
+**Demo (GitHub Copilot for Security):** 
+1. In VSCode, open the /pshsummit2026-devsecops repo, and navigate to the **SampleApps-Security** folder
+2. From Terminal, execute **dotnet run**
+3. This runs a sample bankaccount app, listing up several transactions
+4. Open **GitHub Copilot**, and run the following prompt:
+
+```csharp
+analyse this app, and list up any optimizations from a security perspective. Split the analysis up between an executive summary (first) followed by a deep-technical one for CISO and DevSecOps teams
+```
+
+5. Copilot will respond with a detailed overview of "Security Optimizations", presenting a table for executives with benefits, key business risks,... followed by a more detailed, targeting the technical audience, optimizations. This involves framework upgrade, code changes - often mapped with [OWASP](owasp.org) Top10 vulnerabilities
+
+(Suggestion is to run this prompt beforehand, and show the history of the chat conversation, to avoid any interruptions during a live demo)
+
+6. Optional, continue with an actual 'security change action', by running the following prompt:
+
+```csharp
+tackle item 4
+```
+
+7. Copilot remembers the list of items, and starts working on providing suggestions (code changes most probably), that will fix item 4 topic.
+
 ---
 
 ## H — Hardened Runners & Hardening
@@ -573,6 +595,11 @@ gem 'someweirdpackage', '1.0.0'
 
 **Key message:** Copilot doesn't replace threat modeling — it accelerates it. Use it as a first-pass reviewer for your pipelines.
 
+**Demo (Microsoft Threat Modeling Tool):**
+1. Navigate to [Threat Modeling tool repo](https://github.com/AzureArchitecture/threat-model-templates/blob/master/Samples/az-security-threat-model.tm7)
+2. Open the Azure Security Threat Model 
+3. Highlight some of the Azure Resources and how they all interconnect which each other
+4. From Menu View / Analysis, explain how the different threats are listed + can be selected 
 ---
 
 ## U — Update Automation & Upstream Security
