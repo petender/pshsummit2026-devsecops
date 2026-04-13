@@ -29,10 +29,11 @@ jobs:
       - name: Show that secrets are accessible here (DANGEROUS)
         run: |
           echo "This step runs with write-scoped GITHUB_TOKEN."
-          echo "A forked PR's modified workflow could print or exfiltrate:"
-          echo "  - Repository secrets"
-          echo "  - GITHUB_TOKEN with write access"
-          echo "  - Environment secrets if an environment is referenced"
-          echo ""
           echo "Triggered by fork: ${{ github.event.pull_request.head.repo.fork }}"
           echo "Fork repo:         ${{ github.event.pull_request.head.repo.full_name }}"
+          echo ""
+          echo "--- SECRET EXPOSURE DEMO ---"
+          echo "MY_SECRET value: $MY_SECRET"
+          echo "(if this prints the secret value, pull_request_target gave the fork access to repo secrets)"
+        env:
+          MY_SECRET: ${{ secrets.MY_DEMO_SECRET }}
