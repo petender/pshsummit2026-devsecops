@@ -1,0 +1,55 @@
+name: Environment Protection Demo
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Simulate build
+        run: echo "✅ Build complete — all tests passed."
+
+      - name: Simulate test
+        run: echo "✅ Unit tests passed — 42/42."
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    environment: staging
+    steps:
+      - name: Simulate staging deployment
+        run: |
+          echo "🚀 Deploying to STAGING environment..."
+          echo "   Branch:  ${{ github.ref_name }}"
+          echo "   Commit:  ${{ github.sha }}"
+          echo "✅ Staging deployment complete."
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    # -------------------------------------------------------
+    # This job targets the 'production' environment.
+    # In Settings → Environments → production, configure:
+    #   - Required reviewers: add yourself
+    #   - Deployment branches: main only
+    # The workflow will PAUSE here until a reviewer approves.
+    # -------------------------------------------------------
+    environment: production
+    steps:
+      - name: Simulate production deployment
+        run: |
+          echo "🚀 Deploying to PRODUCTION environment..."
+          echo "   Branch:  ${{ github.ref_name }}"
+          echo "   Commit:  ${{ github.sha }}"
+          echo "   Actor:   ${{ github.actor }}"
+          echo "✅ Production deployment complete — zero downtime."
