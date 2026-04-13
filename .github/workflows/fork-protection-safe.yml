@@ -59,7 +59,7 @@ jobs:
             echo "❌ MY_SECRET is set — this should not happen for a fork PR."
           fi
         env:
-          MY_SECRET: ${{ secrets.MY_DEMO_SECRET }}   # will be empty string for fork PRs
+          MY_SECRET: ${{ secrets.MY_SECRET }}   # will be empty string for fork PRs
 
 # ------------------------------------------------------------------
 # DEMO TALKING POINTS
