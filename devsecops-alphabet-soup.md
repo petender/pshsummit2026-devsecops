@@ -305,28 +305,77 @@ gem 'someweirdpackage', '1.0.0'
 
 ## H — Hardened Runners & Hardening
 
-**What it is:** *Hardened runners* (via GitHub's runner hardening or third-party like StepSecurity) add egress filtering, runtime monitoring, and immutable file systems to Actions jobs. *Hardening* is the practice of reducing attack surface.
+**What it is:** *Hardening* is the practice of reducing attack surface on your workflows and runners. True runner-level egress filtering requires third-party tooling, but the most impactful hardening practices — token scoping, action pinning, and workflow change control — are built directly into GitHub.
+
+**Demo file:** [`.github/workflows/hardening-demo.yml`](.github/workflows/hardening-demo.yml)
 
 **Demo:**
-1. Show a standard GitHub-hosted runner workflow — no restrictions on outbound network.
-2. Visit [app.stepsecurity.io](https://app.stepsecurity.io) → paste your workflow → show the **Harden-Runner** recommendations: pin action SHA, add `permissions: read-all`, detect unexpected outbound calls.
-3. Apply the generated changes to the workflow and push — show the Actions run with the Harden-Runner step reporting allowed/blocked egress.
 
-**Key message:** Your CI runner is code execution infrastructure — treat it like a server, not a sandbox.
+#### Beat 1 — Minimal workflow permissions
+1. Open `.github/workflows/hardening-demo.yml` and point to the top-level `permissions: read-all` block.
+2. Explain that without an explicit `permissions:` block, GitHub grants `contents: write`, `packages: write`, and more by default — a compromised step could push code, create releases, or publish packages.
+3. Show the `build` job — it declares `permissions: contents: read` only. Walk through the **"Show effective token permissions"** step output in the Actions run log.
+4. Open the `release-attempt` job — it also has only `contents: read`. Run the workflow via **Actions → Run workflow** and watch the **"Attempt to create a release tag"** step fail with a 403. Point out this is a *deliberate* failure that proves the scoping is real.
+
+#### Beat 2 — Pin actions to commit SHAs instead of mutable tags
+5. In the workflow file, point to any `uses:` line — e.g.:
+   ```
+   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+   ```
+6. Explain the risk of mutable tags: an attacker who compromises the `actions/checkout` repo could push a backdoored commit to the `v4` tag — every workflow using that tag silently executes it on the next run.
+7. Open the `sha-pinning-summary` job in the Actions run log — it prints a side-by-side comparison of the mutable tag vs pinned SHA with the explanation.
+
+#### Beat 3 — Protect workflow files with CODEOWNERS
+8. Open (or create) `.github/CODEOWNERS` — show the entry:
+   ```
+   .github/workflows/   @petender
+   ```
+9. In the branch protection ruleset, confirm **Require review from Code Owners** is enabled.
+10. Have the second GitHub account (used in the fork demo) open a PR that modifies any workflow file.
+11. Show the PR — the merge button is blocked with **"Review required from code owner"** even if all other checks pass.
+12. Point out: this prevents a contributor from sneaking in a workflow change that exfiltrates secrets, because the repo owner *must* explicitly approve it.
+
+**Key message:** Hardening doesn't require a third-party agent — scoping tokens, pinning SHAs, and gating workflow changes are native GitHub controls that eliminate entire attack classes.
 
 ---
 
 ## I — IaC Scanning
 
-**What it is:** Infrastructure-as-Code scanning analyzes Bicep, Terraform, ARM, or Docker files for misconfigurations *before* deployment (e.g., open storage accounts, no HTTPS, overprivileged IAM roles).
+**What it is:** Infrastructure-as-Code scanning analyzes Bicep, ARM, or Terraform files for misconfigurations *before* deployment (e.g., open storage accounts, no HTTPS, overprivileged IAM roles).
+
+> **Tooling note:** This demo uses `microsoft/security-devops-action`, a GitHub Action published and maintained by Microsoft. For Bicep and ARM templates it uses **Template Analyzer** — a Microsoft-built open-source tool. No third-party vendors (Checkov, KICS, etc.) are involved. Results are reported as SARIF and surface directly in GHAS Code Scanning.
+
+**Demo files:**
+- [`.github/workflows/iac-scanning.yml`](.github/workflows/iac-scanning.yml) — the scanning workflow
+- [`infra/storage.bicep`](infra/storage.bicep) — the misconfigured Bicep file
 
 **Demo:**
-1. Add a Bicep or Terraform file to the repo with a deliberate misconfiguration (e.g., `publicNetworkAccess: 'Enabled'` on a storage account, or a wildcard `*` in a firewall rule).
-2. Enable **code scanning** with a tool like **Checkov** or **KICS** via a GitHub Actions workflow (pre-built actions exist for both).
-3. Push — show the scan flagging the misconfiguration as a code scanning alert with remediation guidance.
-4. Fix the file → re-push → alert resolves.
 
-**Key message:** Security misconfigurations in IaC are bugs too — catch them in PR, not in production.
+#### Beat 1 — Introduce the misconfigured Bicep file
+1. Open `infra/storage.bicep` — point out the three deliberate misconfigurations marked in the comments: `publicNetworkAccess: 'Enabled'`, `allowBlobPublicAccess: true`, and `minimumTlsVersion: 'TLS1_0'`.
+2. Push the file to a feature branch to trigger the workflow.
+
+#### Beat 2 — Walk through the workflow
+3. Open `.github/workflows/iac-scanning.yml` — highlight:
+   - `paths: infra/**` trigger — only fires when IaC files change
+   - `permissions: security-events: write` — required to upload SARIF
+   - `microsoft/security-devops-action` with `categories: IaC` — runs Template Analyzer
+   - `github/codeql-action/upload-sarif` — pushes results into GHAS Code Scanning
+4. Navigate to **Actions** and watch the scan run complete.
+
+#### Beat 3 — Review findings in GHAS Code Scanning
+5. Go to **Security → Code scanning alerts** — show three findings from Template Analyzer:
+   - *Storage account allows public blob access* (High)
+   - *Storage account allows public network access* (Medium)
+   - *Storage account minimum TLS version is below 1.2* (Medium)
+6. Open one alert — show the file path, line number, rule description, and remediation guidance.
+7. Point out these are real GHAS alerts: assignable, dismissable, tracked over time — identical UX to CodeQL findings.
+
+#### Beat 4 — Fix and resolve
+8. In `infra/storage.bicep`, update the three flagged properties to their safe values (comments in the file show exactly what to change).
+9. Push → scan reruns → all three alerts close automatically.
+
+**Key message:** Security misconfigurations in IaC are bugs too — and Microsoft's own tooling, integrated directly into GHAS, catches them in PR before anything is ever deployed.
 
 ---
 

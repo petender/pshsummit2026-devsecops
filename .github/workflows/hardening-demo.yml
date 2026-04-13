@@ -1,0 +1,126 @@
+name: Hardening Demo
+
+# -------------------------------------------------------
+# DEMO: H — Hardened Runners & Hardening
+#
+# This workflow demonstrates three native GitHub hardening
+# practices — no third-party tools required.
+#
+# Beat 1 — Explicit permissions scoping
+#   Top-level 'read-all' restricts every job by default.
+#   Each job then grants only what it actually needs.
+#   The 'release-attempt' job intentionally lacks
+#   'contents: write', so its release step fails with 403 —
+#   demonstrating enforcement.
+#
+# Beat 2 — SHA-pinned action references
+#   Every 'uses:' line references a full commit SHA instead
+#   of a mutable tag. The inline comment preserves the human-
+#   readable version. Mutable tags can be silently redirected
+#   by a supply-chain attacker; SHAs cannot.
+#
+# Beat 3 — CODEOWNERS enforcement (shown in settings, not here)
+#   Add .github/CODEOWNERS with:
+#     .github/workflows/   @petender
+#   Then enable "Require review from Code Owners" in the
+#   branch protection ruleset — any PR touching a workflow
+#   file will require explicit approval from the repo owner.
+# -------------------------------------------------------
+
+# Top-level: restrict all jobs to read-only by default.
+# Individual jobs below override only what they need.
+permissions: read-all
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  # -----------------------------------------------------------
+  # Beat 1a — Show a job that only needs read access.
+  # 'contents: read' is explicitly granted; nothing else.
+  # -----------------------------------------------------------
+  build:
+    name: Build (read-only permissions)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read          # checkout only — no write needed
+
+    steps:
+      # Beat 2 — SHA-pinned action reference.
+      # Tag equivalent: actions/checkout@v4
+      # Pinning to a SHA means a compromised tag cannot
+      # redirect this workflow to malicious code.
+      - name: Checkout (SHA-pinned)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Simulate build
+        run: |
+          echo "✅ Build complete."
+          echo "   Running as: ${{ github.actor }}"
+          echo "   Ref:        ${{ github.ref_name }}"
+          echo "   SHA:        ${{ github.sha }}"
+
+      - name: Show effective token permissions
+        run: |
+          echo "📋 This job has: contents=read only."
+          echo "   It cannot push code, create releases, or write packages."
+
+  # -----------------------------------------------------------
+  # Beat 1b — Intentionally fail to prove enforcement.
+  # This job tries to create a GitHub Release but is missing
+  # 'contents: write'. It will fail with 403 — on purpose.
+  # Point this out to the audience as deliberate enforcement.
+  # -----------------------------------------------------------
+  release-attempt:
+    name: Release Attempt (will fail — intentional 403)
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read          # deliberately NOT write
+
+    steps:
+      - name: Checkout (SHA-pinned)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Attempt to create a release tag (expects 403)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "⚠️  Attempting to create a release with read-only token..."
+          gh release create "demo-hardening-v0.0.1" \
+            --title "Hardening Demo Release" \
+            --notes "This should fail." \
+            --draft || echo "❌ Expected failure: token has contents=read, not contents=write."
+        # The '|| echo' ensures the step output is visible even on failure.
+        # In your demo, remove the '|| echo' to show a hard 403 error instead.
+
+  # -----------------------------------------------------------
+  # Beat 2 summary step — highlight SHA pinning in the log.
+  # -----------------------------------------------------------
+  sha-pinning-summary:
+    name: SHA Pinning Summary
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout (SHA-pinned)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Explain SHA pinning
+        run: |
+          echo "🔒 SHA Pinning Summary"
+          echo "──────────────────────────────────────────────"
+          echo "  Mutable tag : actions/checkout@v4"
+          echo "  Pinned SHA  : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
+          echo ""
+          echo "  A tag like 'v4' can be silently moved to a"
+          echo "  new (malicious) commit by anyone who controls"
+          echo "  that repo. A SHA is immutable — it always"
+          echo "  resolves to exactly the same code."
+          echo "──────────────────────────────────────────────"
