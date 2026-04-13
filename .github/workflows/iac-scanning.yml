@@ -65,4 +65,4 @@ jobs:
       - name: Upload SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ runner.temp }}/msdo.sarif
+          sarif_file: .gdn/msdo.sarif
