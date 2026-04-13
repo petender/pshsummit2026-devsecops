@@ -396,10 +396,36 @@ gem 'someweirdpackage', '1.0.0'
 
 **What it is:** *Keyless auth* (via OIDC) eliminates long-lived credentials. *Key rotation* is the fallback practice for secrets that can't be eliminated — rotate them automatically rather than manually.
 
-**Demo (Key rotation via Dependabot secrets):**
-1. Show an Azure service principal secret stored as a GitHub Actions secret.
-2. Show a workflow that, on schedule, calls the Azure CLI to rotate the secret and uses the GitHub API to update the Actions secret — a self-healing rotation loop.
-3. Compare: OIDC (no secret at all) vs rotated secret (still a secret, just fresher) — frame rotation as mitigation, OIDC as elimination.
+**Demo file:** [`.github/workflows/key-rotation.yml`](.github/workflows/key-rotation.yml)
+
+> **Pre-req — set up before the session:**
+> - **Repo variables:** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_SP_OBJECT_ID` (the object ID of the SP being rotated — find it with `az ad sp show --id <appId> --query id -o tsv`)
+> - **Repo secrets:** `AZURE_CLIENT_SECRET` (the current SP secret), `ROTATION_PAT` (a GitHub fine-grained PAT with *Secrets: read+write* on this repo — `GITHUB_TOKEN` cannot update secrets; that is a deliberate GitHub security boundary)
+> - **Azure federated credential** on the OIDC App Registration for `repo:petender/pshsummit2026-devsecops:ref:refs/heads/main`
+
+**Demo:**
+
+#### Beat 1 — Walk through the workflow
+1. Open `.github/workflows/key-rotation.yml` — highlight:
+   - `schedule: cron` — runs monthly; `workflow_dispatch` for the live demo trigger
+   - `azure/login` with OIDC (`id-token: write`, no stored secret) — point out the irony: "I'm rotating a secret, but I don't need one to do it"
+   - `az ad sp credential reset` — generates a new SP credential and captures the value
+   - `echo "::add-mask::$NEW_SECRET"` — masks the value from all log output immediately
+   - `gh secret set AZURE_CLIENT_SECRET` using `ROTATION_PAT` — pushes the new value back into GitHub
+
+#### Beat 2 — Trigger live
+2. Go to **Actions → Key Rotation — Azure SP Secret → Run workflow** → trigger manually.
+3. Watch the four steps complete — open the **"Rotation summary"** step to show the printed summary (no secret values visible).
+
+#### Beat 3 — Show the updated timestamp
+4. Go to **Settings → Secrets and variables → Actions** — click `AZURE_CLIENT_SECRET`.
+5. Show **"Updated X seconds ago"** — the value rotated without anyone typing a new password.
+
+#### Beat 4 — OIDC vs rotation comparison
+6. Point to the last lines of the summary step output:
+   - `✅ OIDC — no stored secret exists at all`
+   - `🔄 Rotation — secret still exists, just fresher`
+7. Frame it: rotation is the safety net for things you haven't migrated to OIDC yet. The end goal is the OIDC column being fully green (see letter O).
 
 **Key message:** The goal is zero long-lived secrets; rotation is the safety net while you get there.
 
@@ -408,6 +434,10 @@ gem 'someweirdpackage', '1.0.0'
 ## L — License Compliance & Least Privilege
 
 **What it is:** *License compliance* — Dependency review can flag dependencies whose licenses are incompatible with your project (e.g., GPL in a proprietary product). *Least privilege* applies to tokens, service principals, and workflow permissions.
+
+**Demo (License):**
+1. from the [petender/pshsummit2026-devsecops] repo, select **LICENSE**
+2. Explain some of the different open source license options (Apache, MIT,...)
 
 **Demo (Least Privilege in Actions):**
 1. Show a workflow **without** an explicit `permissions:` block — GitHub grants `contents: write` and more by default (older default).
